@@ -9,6 +9,6 @@ def analyzer(filename):
 	print contents 
 
 if __name__ == '__main__':
-	path = "proj-slices/proj-slices/"
+	path = "proj-slices/"
 	filename = path + sys.argv[1]
 	analyzer(filename)
