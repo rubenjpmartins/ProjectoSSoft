@@ -15,23 +15,29 @@ def getPatternsFile(filename):
 
 	patternsFile = open(filename,"r")
 	fileLines = patternsFile.readlines() 
+	lastLine = fileLines[-1]
 
 	i=0
 	patternsDict = {}
 
 	for line in fileLines:
-
 		line = line.replace('\n','')
 
 		#if the line is empty
 		if not line.strip():
-			
 			Patterns.append(patternsDict)
 			patternsDict = {}
 			i=0
 
+		#if last line
+		elif line is lastLine:
+			patternsDict["sensitive_sinks"] = tuple(line.rstrip().split(','))
+			Patterns.append(patternsDict)
+			patternsDict = {}
+			i=0
 
 		else:
+			#GET vulnerabilities
 			if i==0:
 				patternsDict["vulnerabilities"] = line
 				i = i + 1
@@ -45,7 +51,6 @@ def getPatternsFile(filename):
 			elif i==2:
 				patternsDict["sanitization"] = tuple(line.rstrip().split(','))
 				i = i + 1
-
 
 			#GET sensitive_sinks
 			else:
