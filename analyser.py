@@ -58,6 +58,7 @@ def getPatternsFile(filename):
 def checkPattern(children, pattern, VulnerableVariables):
 	for i in xrange(0,len(children)):
 		VulnerableVariables = checkVulnerableVariable(children[i], pattern, VulnerableVariables)
+		checkSensitiveSink(children[i], pattern, VulnerableVariables)
 
 		print VulnerableVariables
 
@@ -78,6 +79,12 @@ def checkVulnerableVariable(line, pattern, VulnerableVariables):
 		elif line["right"]["kind"] == "call":
 			VulnerableVariables = checkArguments(line["left"]["name"], line["right"], pattern, VulnerableVariables)
 
+		elif line["right"]["kind"] == "bin":
+			if line["right"]["left"]["name"] in VulnerableVariables:
+				VulnerableVariables[line["left"]["name"]] = VulnerableVariables[line["right"]["left"]["name"]]
+			elif line["right"]["right"]["name"] in VulnerableVariables:
+				VulnerableVariables[line["left"]["name"]] = VulnerableVariables[line["right"]["right"]["name"]]			
+
 	return VulnerableVariables
 
 def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
@@ -95,9 +102,24 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 					return VulnerableVariables
 	else:
 		if possibleVuln in VulnerableVariables:
-			VulnerableVariables.pop(possibleVuln)
+			if VulnerableVariables[possibleVuln] in pattern["entry_points"]:
+				VulnerableVariables.pop(possibleVuln)
 	return VulnerableVariables
 
+def checkSensitiveSink(line, pattern, VulnerableVariables):
+	if line["kind"] == "assign":
+		if line["right"]["kind"] == "call":
+			checkSensitiveSinkHAsVulnerability(line["right"], pattern, VulnerableVariables)
+	elif line["kind"] == "call":
+			checkSensitiveSinkHAsVulnerability(line, pattern, VulnerableVariables)
+
+def checkSensitiveSinkHAsVulnerability(line, pattern, VulnerableVariables):
+	if line["what"]["name"] in pattern["sensitive_sinks"]:
+		for i in line["arguments"]:
+			if i["kind"] == "variable":
+				if i["name"] in VulnerableVariables:
+					print "Has vulnerability, should use the function " + pattern["sanitization"][0] + " for sanitization"
+					return
 
 def analyzer(ast):
 	children = ast["children"]
