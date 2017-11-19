@@ -74,16 +74,20 @@ def checkVulnerableVariable(line, pattern, VulnerableVariables):
 			for j in line["right"]["value"]:
 				if j["kind"] == "variable":
 					if j["name"] in VulnerableVariables:
-						VulnerableVariables[line["left"]["name"]] = VulnerableVariables[j["name"]]
+						VulnerableVariables[line["left"]["name"]] = j["name"]
 
 		elif line["right"]["kind"] == "call":
 			VulnerableVariables = checkArguments(line["left"]["name"], line["right"], pattern, VulnerableVariables)
 
+		elif line["right"]["kind"] == "variable":
+			if line["right"]["name"] in VulnerableVariables:
+				VulnerableVariables[line["left"]["name"]] = line["right"]["name"]
+
 		elif line["right"]["kind"] == "bin":
 			if line["right"]["left"]["name"] in VulnerableVariables:
-				VulnerableVariables[line["left"]["name"]] = VulnerableVariables[line["right"]["left"]["name"]]
+				VulnerableVariables[line["left"]["name"]] = line["right"]["left"]["name"]
 			elif line["right"]["right"]["name"] in VulnerableVariables:
-				VulnerableVariables[line["left"]["name"]] = VulnerableVariables[line["right"]["right"]["name"]]			
+				VulnerableVariables[line["left"]["name"]] = line["right"]["right"]["name"]			
 
 	return VulnerableVariables
 
@@ -98,7 +102,7 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 
 			elif i["kind"] == "variable":
 				if i["name"] in VulnerableVariables:
-					VulnerableVariables[possibleVuln] = VulnerableVariables[i["name"]]
+					VulnerableVariables[possibleVuln] = i["name"]
 					return VulnerableVariables
 	else:
 		if possibleVuln in VulnerableVariables:
@@ -109,17 +113,40 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 def checkSensitiveSink(line, pattern, VulnerableVariables):
 	if line["kind"] == "assign":
 		if line["right"]["kind"] == "call":
-			checkSensitiveSinkHAsVulnerability(line["right"], pattern, VulnerableVariables)
+			if line["right"]["what"]["name"] in pattern["sensitive_sinks"]:
+				checkSensitiveSinkHasVulnerability(True, line["right"]["arguments"], pattern, VulnerableVariables)
+			else:
+				checkSensitiveSinkHasVulnerability(False, line["right"]["arguments"], pattern, VulnerableVariables)
 	elif line["kind"] == "call":
-			checkSensitiveSinkHAsVulnerability(line, pattern, VulnerableVariables)
+		if line["what"]["name"] in pattern["sensitive_sinks"]:
+			checkSensitiveSinkHasVulnerability(True, line["arguments"], pattern, VulnerableVariables)
+		else:
+			checkSensitiveSinkHasVulnerability(False, line["arguments"], pattern, VulnerableVariables)
+	elif line["kind"] in pattern["sensitive_sinks"]:
+		checkSensitiveSinkHasVulnerability(True, line["arguments"], pattern, VulnerableVariables)
+		
 
-def checkSensitiveSinkHAsVulnerability(line, pattern, VulnerableVariables):
-	if line["what"]["name"] in pattern["sensitive_sinks"]:
-		for i in line["arguments"]:
+def checkSensitiveSinkHasVulnerability(passedInSensitiveSink, line, pattern, VulnerableVariables):
+	if passedInSensitiveSink == True:
+		for i in line:
 			if i["kind"] == "variable":
 				if i["name"] in VulnerableVariables:
 					print "Has vulnerability, should use the function " + pattern["sanitization"][0] + " for sanitization"
-					return
+			elif i["kind"] == "offsetlookup":
+				if i["what"]["name"] in pattern["entry_points"]:
+					print "Has vulnerability, should use the function " + pattern["sanitization"][0] + " for sanitization"
+			elif i["kind"] == "call":
+				if i["what"]["name"] in pattern["sensitive_sinks"]:
+					checkSensitiveSinkHasVulnerability(True, i["arguments"], pattern, VulnerableVariables)
+				else:
+					checkSensitiveSinkHasVulnerability(False, i["arguments"], pattern, VulnerableVariables)
+	elif passedInSensitiveSink == False:
+		for i in line:
+			if i["kind"] == "call":
+				if i["what"]["name"] in pattern["sensitive_sinks"]:
+					checkSensitiveSinkHasVulnerability(True, i["arguments"], pattern, VulnerableVariables)
+				else:
+					checkSensitiveSinkHasVulnerability(False, i["arguments"], pattern, VulnerableVariables)
 
 def analyzer(ast):
 	children = ast["children"]
