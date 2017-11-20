@@ -69,7 +69,7 @@ def checkPattern(children, pattern, VulnerableVariables):
 	for i in xrange(0,len(children)):
 		VulnerableVariables = checkVulnerableVariable(children[i], pattern, VulnerableVariables)
 		checkSensitiveSink(children[i], pattern, VulnerableVariables)
-
+		
 def checkVulnerableVariable(line, pattern, VulnerableVariables):
 
 	VulnerableVariables = checkIfStatements(1, line, pattern, VulnerableVariables, {}, {})
@@ -104,12 +104,14 @@ def checkAssign(line, pattern, VulnerableVariables):
 				VulnerableVariables[line["left"]["name"]] = line["right"]["name"]
 
 		elif line["right"]["kind"] == "bin":
-			addVariableRelations(line["left"]["name"], line["right"]["left"]["name"])
-			addVariableRelations(line["left"]["name"], line["right"]["right"]["name"])
-			if line["right"]["left"]["name"] in VulnerableVariables:
-				VulnerableVariables[line["left"]["name"]] = line["right"]["left"]["name"]
-			elif line["right"]["right"]["name"] in VulnerableVariables:
-				VulnerableVariables[line["left"]["name"]] = line["right"]["right"]["name"]
+			if line["right"]["left"]["kind"] == "variable":
+				addVariableRelations(line["left"]["name"], line["right"]["left"]["name"])
+				if line["right"]["left"]["name"] in VulnerableVariables:
+					VulnerableVariables[line["left"]["name"]] = line["right"]["left"]["name"]
+			if line["right"]["right"]["kind"] == "variable":
+				addVariableRelations(line["left"]["name"], line["right"]["right"]["name"])
+				if line["right"]["right"]["name"] in VulnerableVariables:
+					VulnerableVariables[line["left"]["name"]] = line["right"]["right"]["name"]
 
 	return VulnerableVariables
 
