@@ -55,7 +55,6 @@ def getPatternsFile(filename):
 			  	patternsDict["sensitive_sinks"] = tuple(line.rstrip().split(','))
 				i = i + 1
 
-			
 	return Patterns
 
 def checkPattern(children, pattern, VulnerableVariables):
@@ -67,7 +66,7 @@ def checkPattern(children, pattern, VulnerableVariables):
 
 def checkVulnerableVariable(line, pattern, VulnerableVariables):
 
-	VulnerableVariables = checkIfStatements(1, line, pattern, VulnerableVariables, {})
+	VulnerableVariables = checkIfStatements(1, line, pattern, VulnerableVariables, {}, {})
 
 	if line["kind"] == "assign":
 
@@ -114,34 +113,47 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 			VulnerableVariables.pop(possibleVuln)
 	return VulnerableVariables
 
-def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElements):
+def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElements, sanitizationElements):
 	if line["kind"] == "if":
 		copyVulnerableVariables = copy.deepcopy(VulnerableVariables)
 		for i in xrange(0,len(line["body"]["children"])):
 			copyVulnerableVariables = checkVulnerableVariable(line["body"]["children"][i], pattern, copyVulnerableVariables)
-			#getRemovedIfRemovedElementFromCopy(VulnerableVariables, copyVulnerableVariables)
+		sanitizationElements = getRemovedIfRemovedElementFromCopy(VulnerableVariables, copyVulnerableVariables, sanitizationElements)
 		newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, newElements)
 		if line["alternate"] != None:
 			if line["alternate"]["kind"] == "block":
 				copyVulnerableVariables = copy.deepcopy(VulnerableVariables)
 				for i in xrange(0,len(line["alternate"]["children"])):
 					copyVulnerableVariables = checkVulnerableVariable(line["alternate"]["children"][i], pattern, copyVulnerableVariables)
+				sanitizationElements = getRemovedIfRemovedElementFromCopy(VulnerableVariables, copyVulnerableVariables, sanitizationElements)
+				for i in sanitizationElements:
+					if sanitizationElements[i] == caseNumber + 1:
+						if i in VulnerableVariables:
+							VulnerableVariables.pop(i)
 				newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, newElements)
 			elif line["alternate"]["kind"] == "if":
-				VulnerableVariables = checkIfStatements(caseNumber+1, line["alternate"], pattern, VulnerableVariables, newElements)
+				VulnerableVariables = checkIfStatements(caseNumber+1, line["alternate"], pattern, VulnerableVariables, newElements, sanitizationElements)
 		else:
 			VulnerableVariables = copyVulnerableVariables
+			for i in sanitizationElements:
+				if i in VulnerableVariables:
+					VulnerableVariables.pop(i)
 		if caseNumber == 1:
 			for key, value in newElements.items():
 				VulnerableVariables[key] = value
 	return VulnerableVariables
 
-def getRemovedIfRemovedElementFromCopy(originalVulnDict, copyVulnDict):
+def getRemovedIfRemovedElementFromCopy(originalVulnDict, copyVulnDict, returnSanitizationElements):
 	sanitizationElements = {}
 	for key, value in originalVulnDict.items():
 		if key not in copyVulnDict:
 			sanitizationElements[key] = value
-	return sanitizationElements
+	for key, value in sanitizationElements.items():
+		if key not in returnSanitizationElements:
+			returnSanitizationElements[key] = 1
+		else:
+			returnSanitizationElements[key] += 1
+	return returnSanitizationElements
 
 def getNewIfNewElementInCopy(originalVulnDict, copyVulnDict, returnNewElementsDict):
 	newElements = {}
