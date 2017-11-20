@@ -62,11 +62,13 @@ def checkPattern(children, pattern, VulnerableVariables):
 		VulnerableVariables = checkVulnerableVariable(children[i], pattern, VulnerableVariables)
 		checkSensitiveSink(children[i], pattern, VulnerableVariables)
 
-		#print VulnerableVariables
+		print VulnerableVariables
 
 def checkVulnerableVariable(line, pattern, VulnerableVariables):
 
 	VulnerableVariables = checkIfStatements(1, line, pattern, VulnerableVariables, {}, {})
+
+	VulnerableVariables = checkWhileCondition(line, pattern, VulnerableVariables)
 
 	if line["kind"] == "assign":
 
@@ -113,6 +115,16 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 			VulnerableVariables.pop(possibleVuln)
 	return VulnerableVariables
 
+def checkWhileCondition(line, pattern, VulnerableVariables):
+	if line["kind"] == "while":
+		copyVulnerableVariables = copy.deepcopy(VulnerableVariables)
+		for i in xrange(0,len(line["body"]["children"])):
+			copyVulnerableVariables = checkVulnerableVariable(line["body"]["children"][i], pattern, copyVulnerableVariables)
+		newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, {})
+		for key, value in newElements.items():
+				VulnerableVariables[key] = value
+	return VulnerableVariables
+
 def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElements, sanitizationElements):
 	if line["kind"] == "if":
 		copyVulnerableVariables = copy.deepcopy(VulnerableVariables)
@@ -133,11 +145,6 @@ def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElement
 				newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, newElements)
 			elif line["alternate"]["kind"] == "if":
 				VulnerableVariables = checkIfStatements(caseNumber+1, line["alternate"], pattern, VulnerableVariables, newElements, sanitizationElements)
-		else:
-			VulnerableVariables = copyVulnerableVariables
-			for i in sanitizationElements:
-				if i in VulnerableVariables:
-					VulnerableVariables.pop(i)
 		if caseNumber == 1:
 			for key, value in newElements.items():
 				VulnerableVariables[key] = value
