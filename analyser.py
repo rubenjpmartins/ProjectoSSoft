@@ -9,6 +9,10 @@ PatternsFile = "patterns.txt"
 #patterns List
 Patterns = []
 
+VariableRelations = {}
+
+sanitizationUsed = ""
+
 def getPatternsFile(filename):
 
 	patternsFile = open(filename,"r")
@@ -63,6 +67,7 @@ def checkPattern(children, pattern, VulnerableVariables):
 		checkSensitiveSink(children[i], pattern, VulnerableVariables)
 
 		print VulnerableVariables
+		#print VariableRelations
 
 def checkVulnerableVariable(line, pattern, VulnerableVariables):
 
@@ -75,25 +80,38 @@ def checkVulnerableVariable(line, pattern, VulnerableVariables):
 		if line["right"]["kind"] == "offsetlookup":
 			if line["right"]["what"]["name"] in pattern["entry_points"]:
 					VulnerableVariables[line["left"]["name"]] = line["right"]["what"]["name"]
+					checkVulnVarInfluencesOthers(line["left"]["name"], VulnerableVariables)
 
 		elif line["right"]["kind"] == "encapsed":
 			for j in line["right"]["value"]:
 				if j["kind"] == "variable":
+					VariableRelations.setdefault(line["left"]["name"], [])
+					VariableRelations[line["left"]["name"]].append(j["name"])
 					if j["name"] in VulnerableVariables:
 						VulnerableVariables[line["left"]["name"]] = j["name"]
+						checkVulnVarInfluencesOthers(line["left"]["name"], VulnerableVariables)
 
 		elif line["right"]["kind"] == "call":
 			VulnerableVariables = checkArguments(line["left"]["name"], line["right"], pattern, VulnerableVariables)
 
 		elif line["right"]["kind"] == "variable":
+			VariableRelations.setdefault(line["left"]["name"], [])
+			VariableRelations[line["left"]["name"]].append(line["right"]["name"])
 			if line["right"]["name"] in VulnerableVariables:
 				VulnerableVariables[line["left"]["name"]] = line["right"]["name"]
+				checkVulnVarInfluencesOthers(line["left"]["name"], VulnerableVariables)
 
 		elif line["right"]["kind"] == "bin":
+
+			VariableRelations.setdefault(line["left"]["name"], [])
+			VariableRelations[line["left"]["name"]].append(line["right"]["left"]["name"])
+			VariableRelations[line["left"]["name"]].append(line["right"]["right"]["name"])
 			if line["right"]["left"]["name"] in VulnerableVariables:
 				VulnerableVariables[line["left"]["name"]] = line["right"]["left"]["name"]
+				checkVulnVarInfluencesOthers(line["left"]["name"], VulnerableVariables)
 			elif line["right"]["right"]["name"] in VulnerableVariables:
-				VulnerableVariables[line["left"]["name"]] = line["right"]["right"]["name"]			
+				VulnerableVariables[line["left"]["name"]] = line["right"]["right"]["name"]
+				checkVulnVarInfluencesOthers(line["left"]["name"], VulnerableVariables)
 
 	return VulnerableVariables
 
@@ -107,13 +125,30 @@ def checkArguments(possibleVuln, line, pattern, VulnerableVariables):
 					return VulnerableVariables
 
 			elif i["kind"] == "variable":
+				VariableRelations.setdefault(possibleVuln, [])
+				VariableRelations[possibleVuln].append(i["name"])
 				if i["name"] in VulnerableVariables:
 					VulnerableVariables[possibleVuln] = i["name"]
+					checkVulnVarInfluencesOthers(possibleVuln, VulnerableVariables)
 					return VulnerableVariables
 	else:
+		sanitizationUsed = line["what"]["name"]
 		if possibleVuln in VulnerableVariables:
 			VulnerableVariables.pop(possibleVuln)
+		for i in line["arguments"]:
+			if i["kind"] == "variable":
+				VariableRelations.setdefault(possibleVuln, [])
+				VariableRelations[possibleVuln].append(i["name"])
 	return VulnerableVariables
+
+def checkVulnVarInfluencesOthers(vulnVariable, VulnerableVariables):
+	for key, value in VariableRelations.items():
+		for i in value:
+			if i == vulnVariable:
+				if key not in VulnerableVariables:
+					VulnerableVariables[key] = vulnVariable
+					checkVulnVarInfluencesOthers(key, VulnerableVariables)
+
 
 def checkWhileCondition(line, pattern, VulnerableVariables):
 	if line["kind"] == "while":
@@ -123,6 +158,7 @@ def checkWhileCondition(line, pattern, VulnerableVariables):
 		newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, {})
 		for key, value in newElements.items():
 				VulnerableVariables[key] = value
+				checkVulnVarInfluencesOthers(key, VulnerableVariables)
 	return VulnerableVariables
 
 def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElements, sanitizationElements):
@@ -144,10 +180,11 @@ def checkIfStatements(caseNumber, line, pattern, VulnerableVariables, newElement
 							VulnerableVariables.pop(i)
 				newElements = getNewIfNewElementInCopy(VulnerableVariables, copyVulnerableVariables, newElements)
 			elif line["alternate"]["kind"] == "if":
-				VulnerableVariables = checkIfStatements(caseNumber+1, line["alternate"], pattern, VulnerableVariables, newElements, sanitizationElements)
+				VulnerableVariables = checkIfStatements(caseNumber+1, line["alternate"], pattern, VulnerableVariables, newElements, sanitizationElements, VariableRelations)
 		if caseNumber == 1:
 			for key, value in newElements.items():
 				VulnerableVariables[key] = value
+				checkVulnVarInfluencesOthers(key, VulnerableVariables)
 	return VulnerableVariables
 
 def getRemovedIfRemovedElementFromCopy(originalVulnDict, copyVulnDict, returnSanitizationElements):
@@ -213,9 +250,12 @@ def checkSensitiveSinkHasVulnerability(passedInSensitiveSink, line, pattern, Vul
 def analyzer(ast):
 	children = ast["children"]
 	VulnerableVariables = {}
+	global VariableRelations
+	global sanitizationUsed
 	for pattern in Patterns:
 		checkPattern(children, pattern, VulnerableVariables)
 		VulnerableVariables = {}
+		VariableRelations = {}
 
 if __name__ == '__main__':
 	#read patterns file with the PatternsFile
