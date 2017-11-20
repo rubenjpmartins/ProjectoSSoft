@@ -4,7 +4,8 @@ if ($indarg == "") {
 	$query="SELECT *FROM siswa WHERE nis='$nis'";
 }
 else {
-	$query="SELECT *FROM siswa WHERE nis='$indarg'";
+	$query="SELECT *FROM siswa WHERE nis='$nis'";
 }
+$query=mysql_escape_string($query);
 $q=mysql_query($query,$koneksi);
 ?>

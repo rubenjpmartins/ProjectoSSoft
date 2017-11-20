@@ -1,0 +1,35 @@
+{
+  "kind": "program",
+  "children": [
+    {
+      "kind": "echo",
+      "arguments": [
+        {
+          "kind": "call",
+          "what": {
+            "kind": "identifier",
+            "resolution": "uqn",
+            "name": "htmlentities"
+          },
+          "arguments": [
+            {
+              "kind": "offsetlookup",
+              "what": {
+                "kind": "variable",
+                "name": "_POST",
+                "byref": false,
+                "curly": false
+              },
+              "offset": {
+                "kind": "string",
+                "value": "username",
+                "isDoubleQuote": false
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
